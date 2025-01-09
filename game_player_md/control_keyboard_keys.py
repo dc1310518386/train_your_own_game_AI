@@ -167,22 +167,20 @@ dk = {
 
 # ---------- 以下需要修改或补充 ----------
 
-def W(delay=0.001):    # 移动 前
+def W(delay=1):    # 移动 前
     PressKey(dk['W'])
     time.sleep(delay)
     ReleaseKey(dk['W'])
 
-def S(delay=0.001):    # 移动 后
+def S(delay=1):    # 移动 后
     PressKey(dk['S'])
     time.sleep(delay)
     ReleaseKey(dk['S'])
 
-def A(delay=0.001):    # 移动 左
-    PressKey(dk['W'])
-    PressKey(dk['S'])
+def A(delay=1):    # 移动 左
+    PressKey(dk['A'])
     time.sleep(delay)
-    ReleaseKey(dk['S'])
-    ReleaseKey(dk['W'])
+    ReleaseKey(dk['A'])
 
 def D(delay=1):    # 移动 右
     PressKey(dk['D'])

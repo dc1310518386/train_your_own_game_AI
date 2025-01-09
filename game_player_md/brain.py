@@ -1,6 +1,8 @@
 # https://github.com/ZhiqingXiao/rl-book/blob/master/chapter06_approx/MountainCar-v0_tf.ipynb
 # https://mofanpy.com/tutorials/machine-learning/reinforcement-learning/DQN3
+
 import numpy as np
+np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 import os
 import pandas as pd
 import tensorflow as tf
@@ -10,7 +12,7 @@ if gpus:
     print(tf.config.experimental.get_device_details(gpus[0])['device_name'])
 
 # ---------- 以下根据 control_keyboard_keys.py 里定义的函数来导入 ----------
-from game_player.control_keyboard_keys import W, S, A
+from game_player.control_keyboard_keys import W, S, A, D
 # ---------- 以上根据 control_keyboard_keys.py 里定义的函数来导入 ----------
 
 # ---*---
@@ -19,55 +21,22 @@ class DQNReplayer:
     def __init__(self, capacity):
         self.memory = pd.DataFrame(
             index=range(capacity),
-            columns=['action', 'reward', 'observation_idx', 'next_observation_idx']
+            columns=['observation', 'action', 'reward', 'next_observation']
         )
-        self.observations = []  # 用于存储 observation
-        self.next_observations = []  # 用于存储 next_observation
-        self.capacity = capacity
-        self.i = 0
-        self.count = 0
+        self.i = 0    # 行索引
+        self.count = 0    # 经验存储数量
+        self.capacity = capacity    # 经验容量
 
     def store(self, *args):
-        # 将新的 observation 和 next_observation 添加到列表中
-        self.observations.append(args[0])
-        self.next_observations.append(args[3])
-        
-        # 确保存储索引不会超出有效范围
-        observation_idx = len(self.observations) - 1
-        next_observation_idx = len(self.next_observations) - 1
-
-        # 更新 memory
-        self.memory.loc[self.i] = {
-            'action': args[1],
-            'reward': args[2],
-            'observation_idx': observation_idx,
-            'next_observation_idx': next_observation_idx,
-        }
-        
-        # 更新索引和计数
-        self.i = (self.i + 1) % self.capacity
-        self.count = min(self.count + 1, self.capacity)
-
+        self.memory.loc[self.i] = args
+        self.i = (self.i + 1) % self.capacity    # 更新行索引
+        self.count = min(self.count + 1, self.capacity)    # 保证数量不会超过经验容量
 
     def sample(self, size):
+        indices = np.random.choice(self.count, size=size)
+        return (np.stack(self.memory.loc[indices, field]) for field in self.memory.columns)
 
-        
-
-        invalid_indices = self.memory['observation_idx'][self.memory['observation_idx'] >= len(self.observations)]
-        print(f"Invalid observation indices: {invalid_indices}")
-        indices = np.random.choice(self.count, size=size, replace=False).astype(int)
-
-        observations = np.array([self.observations[idx] for idx in self.memory.loc[indices, 'observation_idx']])
-        next_observations = np.array([self.next_observations[idx] for idx in self.memory.loc[indices, 'next_observation_idx']])
-
-        actions = self.memory.loc[indices, 'action'].values
-        rewards = self.memory.loc[indices, 'reward'].values
-
-        return observations, actions, rewards, next_observations
-
-class MyLayer(tf.keras.layers.Layer):
-    def call(self, x):
-        return tf.cast(x, tf.float32)
+# ---*---
 
 # DoubleDQN
 class DoubleDQN:
@@ -118,14 +87,15 @@ class DoubleDQN:
         input_shape = [self.in_height, self.in_width, self.in_channels]
 
         inputs = tf.keras.Input(shape=input_shape, dtype=tf.uint8)
-        x = MyLayer()(inputs)
+        x = tf.cast(inputs, tf.float32)
         outputs = tf.keras.applications.MobileNetV3Small(input_shape=input_shape, weights=None, classes=self.outputs)(x)
 
         model = tf.keras.Model(inputs=[inputs], outputs=[outputs])
 
+
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(float(self.lr[0])),    
-            loss=tf.keras.losses.CategoricalCrossentropy(),    
+            optimizer=tf.keras.optimizers.Adam(self.lr),    # 你觉得有更好的可以自己改
+            loss=tf.keras.losses.CategoricalCrossentropy(),    # 你觉得有更好的可以自己改
             metrics=[tf.keras.metrics.CategoricalAccuracy()]
         )
 
@@ -134,7 +104,7 @@ class DoubleDQN:
                 model.load_weights(self.load_weights_path)
                 print('Load ' + self.load_weights_path)
             else:
-                print('Nothing to load ')
+                print('Nothing to load')
 
         return model
 
@@ -148,15 +118,21 @@ class DoubleDQN:
             self.who_play = '随机探索'
         else:
             observation = observation.reshape(-1, self.in_height, self.in_width, self.in_channels)
-            q_values = self.evaluate_net.predict(observation)[0]
+            q_values = self.evaluate_net.predict(observation, verbose=0)[0]
             self.who_play = '模型预测'
 
         action = np.argmax(q_values)
 
         # ---------- 以下根据 control_keyboard_keys.py 里定义的函数来修改 ----------
 
-
-
+        """
+        将所有的动作都编码成数字，并且数字满足从零开始和正整数的要求。
+        例如
+            W 移动 前 0
+            S 移动 后 1
+            A 移动 左 2
+            D 移动 右 3
+        """
 
         # 执行动作
         if   action == 0:
@@ -165,7 +141,10 @@ class DoubleDQN:
             S()
         elif action == 2:
             A()
-
+        elif action == 3:
+            D()
+        elif action == 4:    # 等你添加，不需要可以删除
+            pass
         # 不够可以添加，注意，一定要是正整数，还要和上一个相邻
         # ---------- 以上根据 control_keyboard_keys.py 里定义的函数来修改 ----------
 
@@ -175,7 +154,7 @@ class DoubleDQN:
     def learn(self, verbose=0):
 
         self.step += 1
-        print(f"\r Learning step: {self.step}", end='')
+
         # 当前步数满足更新评估网络的要求
         if self.step % self.update_freq == 0:
 

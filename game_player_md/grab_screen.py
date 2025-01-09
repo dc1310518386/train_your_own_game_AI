@@ -43,9 +43,9 @@ def grab_screen(x, x_w, y, y_h):
 
 # ---------- 注意：以下需要设置 ----------
 
-GAME_WIDTH   = 1920    # 游戏窗口宽度
-GAME_HEIGHT  = 1090   # 游戏窗口高度
-white_border = 50   # 游戏边框
+GAME_WIDTH   = 0    # 游戏窗口宽度
+GAME_HEIGHT  = 0    # 游戏窗口高度
+white_border = 0    # 游戏边框
 
 # ---------- 注意：以上需要设置 ----------
 

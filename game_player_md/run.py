@@ -5,8 +5,7 @@ import time
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-from datetime import datetime
-
+np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning)
 import pandas as pd
 
 from game_player.brain import DoubleDQN
@@ -22,7 +21,7 @@ class RewardSystem:
         self.reward_history = list()    # reward 的积累过程
 
     # 获取奖励
-    def get_reward(self, cur_status, next_status,action):
+    def get_reward(self, cur_status, next_status):
         """
         cur_status 和 next_status 都是存放状态信息的列表，内容：[状态1, 状态2, 状态3, 状态4]
         cur_status  表示当前的人物状态
@@ -36,6 +35,8 @@ class RewardSystem:
             # 通过列表索引的方式，取出相应的信息，用未来的状态信息减去当前的状态信息，得到状态变化值
             s1 = next_status[0] - cur_status[0]
             s2 = next_status[1] - cur_status[1]
+            s3 = next_status[2] - cur_status[2]
+            s4 = next_status[3] - cur_status[3]
 
             """
             注意，未来 - 现在
@@ -48,18 +49,12 @@ class RewardSystem:
             请根据具体的游戏来定义，不要生搬硬套，别搞得HP掉了还加分
             """
             # 示例 定义得分
-            s1 = np.clip(s1, 0, 30)
+            s1 *=  1    # 与 奖励 呈正相关，所以 +
+            s2 *= -1    # 与 惩罚 呈正相关，所以 -
+            s3 *= -1    # 与 惩罚 呈正相关，所以 -
+            s4 *=  1    # 与 奖励 呈正相关，所以 +
 
-            if cur_status[1]==0:
-                s2 = 0
-            s1 *= 1    # 与 奖励 呈正相关，所以 +
-            s2 *= 2    
-            
-            reward = s1 + s2
-            reward = np.clip(reward, -50, 30)*10
-            
-            # if action!=3:
-            #     reward=reward-2
+            reward = s1 + s2 + s3 +s4
             # ---------- 以上根据 others.py 里定义的函数 get_status 来修改 ----------
 
         self.total_reward += reward
@@ -80,23 +75,23 @@ class RewardSystem:
 
 # -------------------- 一些参数，根据实际情况修改 --------------------
 
-x   = 326
-x_w = 774
-y   = 311
-y_h = 759
+x   = 0
+x_w = 0
+y   = 0
+y_h = 0
 
 in_depth    = 1
 in_height   = 224    # 图像高度
 in_width    = 224    # 图像宽度
 in_channels = 3     # 颜色通道数量
-outputs = 3     # 动作数量
+outputs = 4     # 动作数量
 lr = 0.001      # 学习率
 
 gamma = 0.99    # 奖励衰减
 replay_memory_size = 10000    # 记忆容量
 replay_start_size = 500       # 开始经验回放时存储的记忆量，到达最终探索率后才开始
-batch_size = 64              # 样本抽取数量
-update_freq = 500                   # 训练评估网络的频率
+batch_size = 16               # 样本抽取数量
+update_freq = 200                   # 训练评估网络的频率
 target_network_update_freq = 500    # 更新目标网络的频率
 
 # -------------------- 一些参数，根据实际情况修改 --------------------
@@ -160,8 +155,7 @@ class Agent:
         for _ in range(in_depth):
             self.screens.append(get_game_screen())    # 先进先出，右进左出
 
-    def img_processing(self, screens): 
-
+    def img_processing(self, screens):
         return np.array([cv2.resize(roi(screen, x, x_w, y, y_h), (in_height, in_width)) for screen in screens])
 
     def round(self):
@@ -174,8 +168,7 @@ class Agent:
 
         reward = self.reward_system.get_reward(
             cur_status=get_status(list(self.screens)[in_depth - 1]),
-            next_status=get_status(list(self.screens)[in_depth * 2 - 1]),
-            action=action
+            next_status=get_status(list(self.screens)[in_depth * 2 - 1])
         )    # R
 
         next_observation = self.img_processing(list(self.screens)[in_depth:])    # S'
